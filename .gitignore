@@ -1,0 +1,76 @@
+# ---- Python build artifacts ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ---- Virtual envs ----
+.venv/
+venv/
+ENV/
+env/
+
+# ---- pytest / mypy / ruff / coverage ----
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# ---- IDE ----
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+
+# ---- Jupyter ----
+.ipynb_checkpoints/
+
+# ---- Local working dirs ----
+.local/
+wandb/
+
+# ---- LaTeX build junk (we keep main.pdf, not the aux files) ----
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.toc
+paper/*.synctex.gz
+paper/*.fls
+paper/*.fdb_latexmk
+
+# ---- Large data (NEVER commit raw HSI cubes) ----
+# Uncomment the lines below if you do not want to track the 28MB of
+# per-seed pickles (they are small enough to keep in the repo by default).
+# results/checkpoints/*.pkl
+data/
+datasets/
+
+# ---- Temporary files ----
+*.tmp
+*.bak

@@ -1,0 +1,37 @@
+# Files to include in the source distribution (sdist).
+#
+# Only the minimum needed for `pip install geocp-rs` to build and work:
+#   - the installed Python package under geocp_rs/
+#   - README, LICENSE, CHANGELOG (for long_description + legal)
+#   - pyproject.toml (the build recipe — auto-included anyway)
+#
+# We deliberately EXCLUDE the 28 MB of per-seed checkpoint pickles, the
+# paper PDFs/figures, and the Colab notebook. These are all reproducibility
+# artifacts that live on GitHub; the PyPI distribution should only ship
+# the code needed to install and run `geocp_rs`.
+
+include README.md
+include LICENSE
+include CHANGELOG.md
+include pyproject.toml
+
+# Minimal tests so that PyPI users can validate their install
+recursive-include tests *.py
+recursive-include examples *.py
+
+# Exclude anything that might slip in via glob
+prune results
+prune figures
+prune paper
+prune notebooks
+prune docs
+prune .pytest_cache
+prune .github
+prune .git
+
+# Standard exclusions
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude __pycache__
+global-exclude .DS_Store
+global-exclude *.egg-info

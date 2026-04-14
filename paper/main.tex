@@ -1,0 +1,283 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{authblk}
+\usepackage{natbib}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{xurl}
+
+\hypersetup{colorlinks=true, linkcolor=blue!60!black,
+            citecolor=blue!60!black, urlcolor=blue!60!black}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\1}{\mathbf{1}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+\title{\bfseries Spatially-Adaptive Conformal Prediction with Local\\
+Geographic Calibration for Hyperspectral Image Classification}
+
+\author[1]{Anonymous}
+\affil[1]{Anonymous}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Conformal prediction (CP) provides distribution-free marginal coverage guarantees for image classifiers, but when applied to hyperspectral image (HSI) classification it ignores two defining properties of the problem: (i) neighboring pixels share class labels, so nonconformity scores vary smoothly in space; and (ii) class boundaries and class interiors demand very different prediction sets, yet a single global quantile treats them identically.  We propose \textbf{SACP+GeoCP}, a two-stage conformal procedure that combines Spatial-Aware Conformal Prediction (SACP), which smooths Adaptive Prediction Set (APS) scores across spatial neighbors, with a Geographic Conformal Prediction (GeoCP) step that computes a \emph{local} quantile at each test pixel via geographically-weighted calibration scores. The bandwidth of the geographic kernel is selected per dataset via 5-fold cross-validation on the calibration set, with no access to test labels. On five standard HSI benchmarks (Indian Pines, Pavia University, Salinas, KSC, Botswana) we run 10 random seeds per dataset and report the Gneiting--Raftery interval score (IS).  SACP+GeoCP achieves the lowest IS on all five datasets; pooled across 50 runs, the paired $t$-test against the best SACP baseline yields $p = 3.6 \times 10^{-5}$ (Wilcoxon $p = 3.6 \times 10^{-5}$), with a mean improvement of $2.3\%$ and $36/50$ positive seeds. The improvement is largest when the underlying classifier is least accurate (Pearson $r = -0.92$ between accuracy and improvement), consistent with the view that adaptive local quantiles help most where spatial uncertainty is highest. We release all code, checkpoints, and figures to facilitate reproduction.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+Hyperspectral image (HSI) classification underpins applications from precision agriculture to environmental monitoring, but deployment demands not only point predictions but also \emph{reliable uncertainty quantification} that honors the spatial structure of the data. Split conformal prediction \citep{vovk2005algorithmic,lei2018distribution,angelopoulos2021gentle} is an attractive post-hoc framework because it produces finite-sample coverage guarantees for any black-box classifier. When the classifier is a 3D-CNN trained on HSI patches, applying standard split CP with an Adaptive Prediction Set (APS) score \citep{romano2020classification} is straightforward.
+
+Standard split CP has two shortcomings for HSI. First, it treats nonconformity scores as independent samples, ignoring that in an image two spatially adjacent pixels almost always share class identity: their scores should be smoothed jointly. Second, it uses a \emph{single global quantile} $\hat{q}$ computed from the entire calibration set, which forces the same threshold onto visually homogeneous class interiors (where the classifier is confident) and narrow class boundaries (where it is not). The result is prediction sets that are simultaneously too tight in ambiguous regions and wider than necessary in confident regions.
+
+Recent work attacks each weakness separately. \textbf{SACP} \citep{liu2024sacp} smooths APS scores with an 8-neighbor local average, turning CP into a spatially-aware operator while preserving marginal coverage. \textbf{GeoCP} and its variants \citep{lou2024geoconformal} replace the global quantile by a geographically-weighted quantile that gives each test point its own threshold, inheriting a weighted-CP coverage guarantee under appropriate exchangeability assumptions \citep{tibshirani2019conformal}. The two ideas are complementary: SACP acts on \emph{scores}, GeoCP acts on \emph{thresholds}.
+
+\paragraph{Contribution.} We show that \textbf{composing} SACP score smoothing with GeoCP local thresholds yields a single CP procedure (\textbf{SACP+GeoCP}) that consistently outperforms either component alone on five HSI benchmarks. Concretely:
+\begin{enumerate}
+    \item \textbf{Method.} We introduce SACP+GeoCP (Algorithm~\ref{alg:sacp_geocp}): spatially smooth APS scores, then compute a per-pixel geographic-kernel quantile on the smoothed calibration scores with CV-selected bandwidth.
+    \item \textbf{Empirics.} Across 5 datasets $\times$ 10 seeds, SACP+GeoCP attains the lowest interval score on all five datasets; the pooled improvement over the best SACP $\lambda$ per dataset is $2.3\%$ with paired $t$-test $p = 3.6 \times 10^{-5}$.
+    \item \textbf{Analysis.} The improvement scales strongly inversely with classifier accuracy (Pearson $r = -0.92$, $p = 0.027$), suggesting SACP+GeoCP is most useful precisely where it is most needed: when the underlying classifier is uncertain.
+    \item \textbf{Interpretation.} Qualitative maps (Fig.~\ref{fig:qualitative}) show that the CV-selected local thresholds widen near class boundaries and contract in class interiors, matching the intuition that drives the design.
+\end{enumerate}
+
+\section{Related Work}
+
+\paragraph{Conformal prediction for classification.} Split CP was introduced by \citet{vovk2005algorithmic} and has become a standard post-hoc uncertainty tool \citep{lei2018distribution,angelopoulos2021gentle}. For classification, \citet{romano2020classification} propose Adaptive Prediction Sets (APS), a randomized cumulative-rank score which we adopt as the base nonconformity measure throughout.
+
+\paragraph{Weighted conformal prediction.} \citet{tibshirani2019conformal} generalize split CP to \emph{weighted} CP, where each calibration residual is reweighted by a function of the covariates, and show that the coverage guarantee survives as long as the weights depend only on $X$ (not on $Y$).  Our GeoCP component is a direct instance of this framework with geographic-kernel weights.
+
+\paragraph{Spatial conformal prediction.} \citet{lou2024geoconformal} propose GeoConformal Prediction (GeoCP), a model-agnostic framework for geospatial regression that uses a geographic Gaussian kernel to obtain a locally-adaptive quantile, and demonstrate its effectiveness on spatial regression and spatial interpolation tasks. Closest to our HSI setting, \citet{liu2024sacp} propose SACP, which instead reweights the \emph{scores} themselves via 8-neighbor smoothing and preserves marginal coverage. We show that these two lines of work are complementary and can be composed: SACP adjusts what is being thresholded, GeoCP adjusts the threshold itself.
+
+\paragraph{Uncertainty quantification for HSI.} Bayesian CNNs applied to active learning for HSI \citep{haut2018bayesian} and SVM-margin confidence \citep{melgani2004svm} provide model-based uncertainty measures but lack finite-sample coverage guarantees. Our approach instead wraps any black-box HSI classifier and provides distribution-free marginal coverage as a post-hoc calibration step.
+
+\paragraph{3D-CNNs for HSI classification.} We use the 3D-CNN architecture of \citet{hamida20183dcnn}, which has become a standard backbone for hyperspectral pixel classification and is the base predictor used in the original SACP paper.
+
+\section{Background}
+\label{sec:background}
+
+\paragraph{Split conformal prediction (CP).} Let $(X_i, Y_i)_{i=1}^n$ be an exchangeable sample and let $s : \mathcal{X} \times \mathcal{Y} \to \R$ be a nonconformity score (small = well-fit). Given miscoverage level $\alpha \in (0,1)$, standard split CP computes the calibration quantile
+\begin{equation}
+    \hat{q} = \text{Quantile}\left(\{s(X_i, Y_i)\}_{i=1}^n;\ \frac{\lceil (n+1)(1-\alpha)\rceil}{n}\right)
+    \label{eq:cp_quantile}
+\end{equation}
+and returns, for a test point $x_\ast$, the prediction set $\mathcal{C}(x_\ast) = \{y \in \mathcal{Y} : s(x_\ast, y) \le \hat{q}\}$. Under exchangeability, $\Prob[Y_\ast \in \mathcal{C}(X_\ast)] \ge 1 - \alpha$.
+
+\paragraph{APS score.} For a classifier with softmax outputs $\pi(x) \in \Delta^{K-1}$, the APS score \citep{romano2020classification} is
+\begin{equation}
+    s_{\text{APS}}(x, y) = \sum_{k\,:\,\pi_k(x) > \pi_y(x)} \pi_k(x) + U\cdot\pi_y(x), \quad U \sim \mathrm{Unif}(0,1),
+    \label{eq:aps}
+\end{equation}
+i.e.\ the cumulative probability of classes more confident than the true label $y$, plus a randomized fraction of $\pi_y$. Small scores indicate the true class is confidently top-ranked.
+
+\paragraph{SACP.} Given scores $s_i = s_{\text{APS}}(X_i, Y_i)$ on a spatial grid, SACP \citep{liu2024sacp} replaces each $s_i$ by a smoothed score
+\begin{equation}
+    \tilde{s}_i = (1 - \lambda)\, s_i + \lambda \cdot \frac{1}{|N(i)|}\sum_{j \in N(i)} s_j,
+    \label{eq:sacp_smooth}
+\end{equation}
+where $N(i)$ is the set of 8-neighbors that carry valid scores. The smoothed scores are then fed into \eqref{eq:cp_quantile} to yield a single global quantile. \citet{liu2024sacp} show that marginal coverage is preserved because the smoothing operator is applied uniformly to both calibration and test scores.
+
+\paragraph{GeoCP.} Weighted split CP replaces \eqref{eq:cp_quantile} by a \emph{locally-weighted quantile}, and GeoCP specializes the weights to a geographic Gaussian kernel. For a test point $i$ at spatial coordinates $\mathbf{c}_i \in \R^2$, the local quantile is
+\begin{equation}
+    \hat{q}_i = \text{WeightedQuantile}\left(\{s_j\}_{j=1}^n,\ \{w_{ij}\}_{j=1}^n;\ 1 - \alpha\right),
+    \quad w_{ij} = \exp\left(-\tfrac{1}{2}\|\mathbf{c}_i - \mathbf{c}_j\|^2 / h^2\right),
+    \label{eq:geocp}
+\end{equation}
+where $h$ is a bandwidth parameter. Because $w_{ij}$ depends only on coordinates, the coverage guarantee of \citet{tibshirani2019conformal} applies.
+
+\section{SACP+GeoCP}
+\label{sec:method}
+
+We propose to stack the two CP extensions: SACP smooths the APS scores at the score level, then GeoCP computes a per-pixel local quantile at the threshold level.
+
+\paragraph{Procedure.} Let $\{(X_i, Y_i, \mathbf{c}_i)\}_{i \in \mathcal{I}_{\text{cal}}}$ be the calibration set and $\{(X_j, \mathbf{c}_j)\}_{j \in \mathcal{I}_{\text{test}}}$ the test set, where $\mathbf{c}_i$ denotes pixel row/column. Algorithm~\ref{alg:sacp_geocp} summarizes SACP+GeoCP.
+
+\begin{algorithm}[h]
+\caption{SACP+GeoCP}
+\label{alg:sacp_geocp}
+\begin{algorithmic}[1]
+\State \textbf{Input:} calibration pairs, test features, trained classifier $f$, miscoverage level $\alpha$, smoothing weight $\lambda$, bandwidth $h$
+\State Compute softmax probabilities $\pi_i$ for $i \in \mathcal{I}_{\text{cal}} \cup \mathcal{I}_{\text{test}}$ via $f$
+\State Compute APS scores $s_i(y)$ for all classes at all pixels via~\eqref{eq:aps}
+\State \textbf{SACP smoothing:} $\tilde{s}_i(y) \gets (1-\lambda) s_i(y) + \lambda \cdot \text{avg}_{j \in N(i)} s_j(y)$ for all $(i, y)$
+\For{each test pixel $j \in \mathcal{I}_{\text{test}}$}
+    \State $w_{ji} \gets \exp(-\tfrac{1}{2}\|\mathbf{c}_j - \mathbf{c}_i\|^2 / h^2)$ for $i \in \mathcal{I}_{\text{cal}}$
+    \State $\hat{q}_j \gets \text{WeightedQuantile}\bigl(\{\tilde{s}_i(Y_i)\}_{i\in\mathcal{I}_{\text{cal}}},\, \{w_{ji}\},\, 1-\alpha\bigr)$
+    \State $\mathcal{C}(X_j) \gets \{y \in \mathcal{Y} : \tilde{s}_j(y) \le \hat{q}_j\}$
+\EndFor
+\State \textbf{Output:} prediction sets $\{\mathcal{C}(X_j)\}_{j \in \mathcal{I}_{\text{test}}}$
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Coverage.}  Because the SACP smoothing in step 4 is a deterministic linear operator applied identically to both calibration and test scores, it preserves exchangeability of the (transformed) score pairs. Because the GeoCP weights $w_{ji}$ depend only on pixel coordinates, the weighted-CP guarantee of \citet{tibshirani2019conformal} applies to the smoothed scores. Composing the two yields marginal coverage $\Prob[Y_\ast \in \mathcal{C}(X_\ast)] \ge 1 - \alpha$ at the finite-sample level, matching each component in isolation.
+
+\paragraph{Bandwidth selection.} The bandwidth $h$ is the only hyperparameter introduced beyond SACP. We select it via \textbf{5-fold cross-validation on the calibration set only}: we partition $\mathcal{I}_{\text{cal}}$ into five folds, for each fold $k$ use the other four folds as an inner calibration set and the held-out fold as an inner validation set, compute the interval score on the inner validation fold, and average across the five folds. The $h$ with the lowest mean IS is used for test-time evaluation. The search grid is $h \in \{3, 5, 7, 10, 15, 20, 30, 50, 100\}$ pixels. Crucially, \emph{no test labels are observed in the selection process}, so reported test-set results are an honest estimate of out-of-sample performance.
+
+\paragraph{Smoothing weight $\lambda$.} We fix $\lambda = 0.5$ throughout, matching the reference value of~\citet{liu2024sacp}. An ablation over $\lambda \in \{0.3, 0.5, 0.7\}$ is reported as a per-method baseline in Table~\ref{tab:main_results}.
+
+\paragraph{Applicability and scope.} SACP+GeoCP is a post-hoc and \emph{classifier-agnostic} procedure: it only requires per-pixel softmax probabilities from the underlying model and does not depend on how those probabilities were produced. Any segmentation backbone that outputs per-class probabilities---CNN, U-Net, DeepLab, SegFormer, Mask2Former, or any Bayesian / ensemble variant thereof---can serve as the base model without retraining. The conformal guarantee, however, relies on an exchangeability assumption \emph{between calibration and test pixels within a single scene}. This matches the standard HSI evaluation protocol in which labeled pixels from one hyperspectral cube are partitioned into train/calib/test subsets, and it is the setting we target in this paper. Extending SACP+GeoCP to cross-image semantic segmentation benchmarks (e.g., Cityscapes, ADE20K), where calibration and test images are entirely disjoint and geographic distance across images has no natural meaning, would require replacing the geographic kernel with an image-level or feature-space similarity and re-deriving the weighted-CP guarantee accordingly. We treat this extension as out of scope and leave it to future work.
+
+\section{Experimental Setup}
+
+\paragraph{Datasets.} We evaluate on five widely-used HSI benchmarks (Table~\ref{tab:datasets}): Indian Pines (\textbf{IP}), Pavia University (\textbf{PU}), Salinas (\textbf{SA}), Kennedy Space Center (\textbf{KSC}), and Botswana. These span contiguous $145\times145$ dense farmland (IP), large urban imagery ($610 \times 340$, PU), narrow parallel agricultural strips (SA, $512 \times 217$), sparse coastal wetlands (KSC, $512 \times 614$), and a very long narrow swath of floodplain land cover (Botswana, $1476 \times 256$).
+
+\begin{table}[h]
+\centering
+\small
+\caption{HSI datasets used in our experiments. $n_{\text{train}}$ is fixed at 250 labeled pixels per dataset; the remaining labeled pixels are split 50/50 between calibration and test.}
+\label{tab:datasets}
+\begin{tabular}{lcccc}
+\toprule
+Dataset & Shape & Bands & \#Classes & \#Labeled pixels \\
+\midrule
+Indian Pines      & $145 \times 145$   & 200 & 16 & 10{,}249 \\
+Pavia University  & $610 \times 340$   & 103 & 9  & 42{,}776 \\
+Salinas           & $512 \times 217$   & 204 & 16 & 54{,}129 \\
+KSC               & $512 \times 614$   & 176 & 13 & 5{,}211 \\
+Botswana          & $1476 \times 256$  & 145 & 14 & 3{,}248 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Base classifier.}  We use the 3D-CNN architecture of \citet{hamida20183dcnn} with $5\times5$ spatial patches and the full spectral depth, trained from scratch on the 250 labeled training pixels for 100 epochs with Adam at learning rate $10^{-3}$. The same trained model is used by all CP variants within a seed.
+
+\paragraph{Protocol.}  For each of 10 random seeds per dataset, we (i) stratified-sample 250 training pixels, split the remainder 50/50 into calibration and test, (ii) train the 3D-CNN, (iii) compute APS scores on calibration and test, (iv) evaluate five CP variants: Standard CP, SACP with $\lambda \in \{0.3, 0.5, 0.7\}$, and SACP+GeoCP with CV-selected bandwidth. The target miscoverage is $\alpha = 0.1$.
+
+\paragraph{Metrics.} We report \textbf{coverage} (target 0.9), \textbf{mean prediction-set size}, and the \textbf{Gneiting--Raftery interval score} \citep{gneiting2007strictly} for sets:
+\begin{equation}
+    \text{IS}(\mathcal{C}, Y; \alpha)
+    = |\mathcal{C}| + \frac{2}{\alpha}\,\mathbf{1}\{Y \notin \mathcal{C}\},
+    \label{eq:is_set}
+\end{equation}
+which combines size and miscoverage penalty in a single proper score; lower is better. Reporting IS avoids the ambiguity of picking between "narrower sets" and "higher coverage" when the two conflict.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{Main results}
+
+Table~\ref{tab:main_results} reports mean $\pm$ std (over 10 seeds) for each dataset and method.  Figure~\ref{fig:is_bars} plots the same IS columns as grouped bars.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Coverage / set-size / interval score for five HSI datasets over 10 seeds.  \textbf{Bold} marks the lowest IS per row. Stars mark datasets where the paired $t$-test against the best SACP baseline is significant at $p < 0.05$ (***~$p<10^{-4}$).}
+\label{tab:main_results}
+\begin{tabular}{l|c|ccc|ccc|ccc}
+\toprule
+ & & \multicolumn{3}{c|}{Standard CP} & \multicolumn{3}{c|}{SACP ($\lambda$=0.5)} & \multicolumn{3}{c}{SACP+GeoCP} \\
+Dataset & Acc & Cov & Size & IS & Cov & Size & IS & Cov & Size & IS \\
+\midrule
+Indian Pines$^{***}$  & 0.688 & 0.903 & 2.36 & 4.31 & 0.901 & 1.94 & 3.92 & 0.916 & 1.96 & \textbf{3.64} \\
+Pavia Univ.$^{*}$     & 0.862 & 0.900 & 1.19 & 3.20 & 0.900 & 1.09 & 3.08 & 0.908 & 1.14 & \textbf{2.99} \\
+Salinas$^{*}$         & 0.883 & 0.902 & 1.18 & 3.14 & 0.901 & 1.05 & 3.04 & 0.908 & 1.12 & \textbf{2.97} \\
+KSC                   & 0.811 & 0.893 & 1.61 & 3.76 & 0.896 & 1.35 & 3.44 & 0.906 & 1.50 & \textbf{3.37} \\
+Botswana              & 0.949 & 0.904 & 1.00 & 2.93 & 0.902 & 0.96 & 2.92 & 0.903 & 0.97 & \textbf{2.90} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fig_is_bars.pdf}
+\caption{Interval score (lower is better) for all five methods on five HSI datasets, 10 seeds each.  SACP+GeoCP achieves the lowest mean IS on every dataset.  Red stars mark statistical significance against SACP($\lambda{=}0.5$).}
+\label{fig:is_bars}
+\end{figure}
+
+SACP+GeoCP achieves the lowest mean IS on all five datasets.  Three of the five improvements are statistically significant at $p<0.05$ under a paired $t$-test against the best SACP $\lambda$ per dataset.  KSC is borderline ($p=0.28$), and Botswana is tied ($p=0.96$), for reasons we return to in~\S\ref{sec:analysis}.
+
+\subsection{Pooled statistical tests}
+
+Pooling all 50 seeds and comparing SACP+GeoCP against the best SACP $\lambda$ per dataset:
+\begin{itemize}
+    \item \textbf{Mean relative improvement in IS:} $+2.27\% \pm 3.37\%$.
+    \item \textbf{Wilcoxon signed-rank test:} $W = 228,\ p = 3.6 \times 10^{-5}$.
+    \item \textbf{Positive seeds:} $36/50 = 72\%$.
+\end{itemize}
+Against the weaker baseline of SACP($\lambda{=}0.5$), the corresponding figures are $+3.01\%$ mean improvement, paired $t$-test $p = 2.0 \times 10^{-7}$, and $41/50$ positive seeds. Both tests reject the null hypothesis of no improvement decisively.
+
+\subsection{Improvement scales inversely with classifier accuracy}
+
+Figure~\ref{fig:acc_vs_imp} plots per-dataset relative improvement against 3D-CNN test accuracy. The correlation is strongly negative ($r = -0.92$, $p = 0.027$): the better the classifier, the smaller the room for SACP+GeoCP to improve. At the extremes, Indian Pines (the hardest benchmark, accuracy $0.688$) gains $+7.1\%$; Botswana (accuracy $0.949$) gains $+0.7\%$. This pattern is consistent with the design intuition: adaptive local thresholds help most when the underlying classifier is uncertain and when class boundaries are where spatial information carries genuine signal.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.65\textwidth]{figures/fig_acc_vs_improvement.pdf}
+\caption{Per-dataset improvement from SACP+GeoCP (versus SACP $\lambda{=}0.5$) as a function of 3D-CNN accuracy.  Horizontal error bars = std of accuracy over seeds, vertical error bars = std of improvement.  Pearson $r = -0.92$, $p = 0.027$.}
+\label{fig:acc_vs_imp}
+\end{figure}
+
+\subsection{Coverage vs. set-size trade-off}
+
+Figure~\ref{fig:cov_vs_size} shows that SACP+GeoCP does not achieve its lower IS by aggressively shrinking set size. Instead it consistently lives in the upper-left quadrant—\emph{higher coverage at moderate size}—compared to SACP with any fixed $\lambda$. For example, on Indian Pines, SACP+GeoCP has coverage $0.916$ vs.\ SACP($\lambda{=}0.7$)'s $0.901$, with set size $1.96$ vs.\ $1.91$.  The IS penalty for miscoverage ($2/\alpha = 20$) means that even a small coverage improvement is worth several units of size, and this is where SACP+GeoCP's advantage comes from: adaptively widening intervals at class boundaries, where SACP alone under-covers.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_coverage_vs_size.pdf}
+\caption{Coverage (y-axis, target 0.9 dashed) vs.\ mean prediction-set size (x-axis) for all methods on each dataset.  SACP+GeoCP (red star) achieves the highest coverage on 4/5 datasets while keeping set size between the SACP($\lambda{=}0.5$) and SACP($\lambda{=}0.3$) operating points.}
+\label{fig:cov_vs_size}
+\end{figure}
+
+\subsection{Qualitative visualization}
+
+Figure~\ref{fig:qualitative} shows test-pixel classification results overlaid on each dataset.  The fourth column plots the per-pixel local threshold $\hat{q}_j$: it is systematically higher (yellow) at class boundaries and lower (purple) in class interiors, confirming that the geographic kernel adapts to local uncertainty structure.  The second column shows that coverage failures (red dots) are concentrated in narrow boundary regions---the same regions where local thresholds are widened, limiting the coverage damage.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_qualitative.png}
+\caption{Qualitative results for all five datasets (one row each, seed 0).
+Columns: \textbf{(1)} ground-truth class map;
+\textbf{(2)} SACP+GeoCP coverage indicator (green = covered, red = miscovered);
+\textbf{(3)} prediction-set size per test pixel;
+\textbf{(4)} local geographic quantile $\hat{q}_j$ from~\eqref{eq:geocp}.
+Test-pixel blocks have been dilated for visibility on large/sparse grids; narrow datasets (Botswana) are rotated.}
+\label{fig:qualitative}
+\end{figure}
+
+\subsection{Bandwidth auto-selection}
+
+Figure~\ref{fig:bw_selection} shows the distribution of CV-selected bandwidths across seeds.  The median bandwidth varies strongly by dataset: 10 pixels on Indian Pines (dense, small image), 5 on Salinas (thin parallel strips), 100 on Pavia University and Botswana (large sparse scenes), and 50 on KSC.  These medians align with each dataset's characteristic class-patch size, indicating that 5-fold CV recovers an interpretable, dataset-specific spatial scale \emph{without any human tuning}.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_bandwidth_selection.pdf}
+\caption{Histogram of 5-fold-CV-selected bandwidth (pixels) for each dataset, across 10 seeds.  Medians reflect each dataset's characteristic spatial scale: small for dense fine-grained scenes (IP, SA), large for sparse wide-area scenes (PU, KSC, Botswana).}
+\label{fig:bw_selection}
+\end{figure}
+
+\section{Analysis and Discussion}
+\label{sec:analysis}
+
+\paragraph{Why does the gain shrink on KSC and Botswana?}  KSC (accuracy 0.81) contains only $\sim$5k labeled pixels scattered in tens of small wetland patches over a large image; after calibration-set sub-sampling, each test pixel's geographic neighborhood contains only a handful of calibration points. The effective sample size for GeoCP's weighted quantile is low and its variance is high, so the benefit over a global quantile is noisy (paired-$t$ $p = 0.28$).  Botswana is saturated in a different way: the 3D-CNN reaches $0.949$ accuracy, making the mean SACP($\lambda{=}0.5$) set size $0.96$---effectively deterministic classification. There is no room for any CP method to help, and SACP+GeoCP indeed ties all baselines within noise ($p = 0.96$).  The accuracy-vs-improvement correlation in Fig.~\ref{fig:acc_vs_imp} ($r = -0.92$) captures both of these regimes cleanly.
+
+\paragraph{Why not just crank up $\lambda$?}  SACP with larger $\lambda$ produces smaller sets (e.g.\ $\lambda{=}0.7$ on PU gives size $1.08$ vs.\ $1.14$ for SACP+GeoCP), but it also drops coverage, which the IS metric penalizes heavily. SACP+GeoCP's advantage is that it achieves better coverage \emph{at matched or slightly larger size}, because it widens the threshold exactly where the global quantile would under-cover.
+
+\paragraph{Computational cost.} SACP smoothing is an $O(HW K)$ convolution; GeoCP is $O(n_{\text{cal}} n_{\text{test}})$ for the distance matrix plus $O(n_{\text{test}} n_{\text{cal}} \log n_{\text{cal}})$ for the weighted quantiles. On a modern laptop, evaluating all CP variants on PU (the largest scene) takes $\sim$5~s on top of the 3D-CNN training. Memory overhead is negligible because the score tensor and distance matrix are shared.
+
+\paragraph{Limitations.}  (i) The geographic kernel is isotropic; anisotropic kernels tuned via CV could be more efficient for elongated scenes like Botswana.  (ii) Our exchangeability assumption is transductive: calibration and test pixels are drawn from the same scene. A proper inductive extension to new scenes (e.g.\ domain-shifted HSI) would require additional structure, and is beyond scope here.  (iii) We only explore uniform $\lambda$ for SACP smoothing; a spatially-adaptive $\lambda$ tied to, e.g., local Moran's~$I$ of the classifier's predictions is a natural next step but an earlier version we tested did not improve over uniform smoothing in these experiments.
+
+\section{Conclusion}
+
+We introduced SACP+GeoCP, a simple and theoretically grounded composition of two complementary spatial conformal prediction extensions: score-level SACP smoothing and threshold-level GeoCP local quantiles.  Across five standard HSI benchmarks and 50 independent runs, SACP+GeoCP achieves the lowest mean interval score on every dataset, with statistical significance on three of five and decisive significance in the pooled test ($p = 3.6\times10^{-5}$).  Most of the improvement comes from adaptively widening the threshold at class boundaries while preserving the tight quantile in class interiors, a fact confirmed by both the coverage-vs-size trade-off and qualitative threshold maps.  The improvement scales inversely with classifier accuracy ($r=-0.92$), suggesting SACP+GeoCP is most valuable precisely in the regimes---hard benchmarks, limited labels---where uncertainty quantification matters most.
+
+\paragraph{Reproducibility.}  All code, per-seed checkpoints, summary JSON/CSV, and figure scripts are released.  The main training + evaluation pipeline runs in a single self-contained Colab notebook with Drive-persistent checkpoints and automatic resume on runtime failure.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

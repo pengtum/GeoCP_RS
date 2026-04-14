@@ -1,0 +1,101 @@
+[build-system]
+# Pin setuptools <77 so the emitted METADATA stays at version 2.3 and avoids
+# the PEP 639 `License-File` field that twine <6.3 rejects as "unrecognized".
+# Bump to >=77 once twine's PEP 639 support stabilizes.
+requires = ["setuptools>=61.0,<77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# PyPI canonical name uses hyphen; the import name is still `geocp_rs`.
+name = "geocp-rs"
+version = "0.1.0"
+description = "Spatially-adaptive conformal prediction for hyperspectral image classification (SACP+GeoCP)."
+readme = {file = "README.md", content-type = "text/markdown"}
+requires-python = ">=3.9"
+license = { text = "MIT" }
+# IMPORTANT: set your real name + email before running `twine upload`.
+authors = [
+    { name = "Peng Luo", email = "your-email@example.com" },
+]
+maintainers = [
+    { name = "Peng Luo", email = "your-email@example.com" },
+]
+keywords = [
+    "conformal prediction",
+    "uncertainty quantification",
+    "hyperspectral imaging",
+    "remote sensing",
+    "spatial statistics",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Scientific/Engineering :: GIS",
+]
+
+# Core dependencies — the CP algorithm itself needs only numpy + scipy + sklearn
+dependencies = [
+    "numpy>=1.23",
+    "scipy>=1.9",
+    "scikit-learn>=1.2",
+]
+
+[project.optional-dependencies]
+# Base classifier (3D-CNN) and training pipeline
+torch = [
+    "torch>=2.0",
+]
+# Figure generation
+viz = [
+    "matplotlib>=3.6",
+    "pandas>=1.5",
+]
+# Full developer install (everything you need to reproduce the paper)
+all = [
+    "torch>=2.0",
+    "matplotlib>=3.6",
+    "pandas>=1.5",
+    "tqdm>=4.0",
+]
+dev = [
+    "torch>=2.0",
+    "matplotlib>=3.6",
+    "pandas>=1.5",
+    "pytest>=7.0",
+    "ruff>=0.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/pengtum/GeoCP_RS"
+Documentation = "https://github.com/pengtum/GeoCP_RS#readme"
+Repository = "https://github.com/pengtum/GeoCP_RS"
+Issues = "https://github.com/pengtum/GeoCP_RS/issues"
+
+[project.scripts]
+# Expose the main experiment drivers as console scripts after `pip install .`
+geocp-rs-run-all = "geocp_rs.cli:run_all_main"
+geocp-rs-aggregate = "geocp_rs.cli:aggregate_main"
+geocp-rs-figures = "geocp_rs.cli:figures_main"
+
+[tool.setuptools]
+packages = ["geocp_rs"]
+
+[tool.setuptools.package-data]
+geocp_rs = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
