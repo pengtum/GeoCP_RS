@@ -161,14 +161,10 @@ GeoCP_RS/
 │   ├── run_log.txt                   # Colab execution log
 │   └── checkpoints/                  # 50 per-seed pickles (28 MB total)
 │
-├── figures/                          # paper figures (PDF + PNG)
-│
-└── paper/                            # LaTeX manuscript package
-    ├── main.tex
-    ├── main.pdf
-    ├── references.bib
-    └── figures/
+└── figures/                          # paper figures (PDF + PNG)
 ```
+
+> The LaTeX manuscript and compiled PDF live in a separate manuscript repository and are not bundled with the code package. This repo only ships the implementation, experiments, and results needed to reproduce the numbers.
 
 ## Installation options
 
@@ -191,11 +187,10 @@ See [`docs/INSTALLATION.md`](docs/INSTALLATION.md) for platform-specific notes (
 | [`docs/ALGORITHM.md`](docs/ALGORITHM.md) | Understand the algorithm step by step with proofs |
 | [`docs/EXPERIMENT_PROTOCOL.md`](docs/EXPERIMENT_PROTOCOL.md) | Reproduce the paper's numbers exactly |
 | [`docs/RESULTS_ANALYSIS.md`](docs/RESULTS_ANALYSIS.md) | Deep-dive into per-dataset results and statistics |
-| [`paper/main.pdf`](paper/main.pdf) | Read the paper itself |
 
 ## Citation
 
-If you use `geocp_rs` in your research, please cite the paper (see `paper/main.tex`) and the two methods we compose:
+If you use `geocp_rs` in your research, please cite the accompanying manuscript (forthcoming) and the two methods it composes:
 
 ```bibtex
 @article{liu2024sacp,

@@ -1,6 +1,6 @@
 # The SACP+GeoCP Algorithm
 
-This document is the long-form companion to Section 4 of `paper/main.tex`. It walks through every step of the algorithm in detail, points at the corresponding code in `geocp_rs/`, and states the formal coverage guarantee with proof.
+This document is the standalone, self-contained reference for the SACP+GeoCP algorithm as implemented in this package. It walks through every step in detail, points at the corresponding code in `geocp_rs/`, and states the formal coverage guarantee with proof. (The accompanying paper manuscript is maintained in a separate repository.)
 
 ## Notation
 

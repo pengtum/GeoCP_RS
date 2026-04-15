@@ -119,7 +119,7 @@ print(f"IS  SACP+GeoCP: {cp_out['sacp_geocp']['is']:.3f}")
 
 SACP+GeoCP's coverage guarantee holds when **calibration and test pixels are exchangeable**. In our HSI protocol they are: labeled pixels within a single scene are stratified-split into train/calib/test, and the conformal procedure is transductive over that scene.
 
-**It does not directly apply to cross-image semantic segmentation** (e.g., Cityscapes train/val/test are different cities). There the geographic distance between a train pixel and a test pixel is undefined. Adapting SACP+GeoCP to that setting requires replacing the geographic kernel with an image-level or feature-space similarity and re-deriving the weighted-CP guarantee. See `paper/main.tex` §4 Applicability.
+**It does not directly apply to cross-image semantic segmentation** (e.g., Cityscapes train/val/test are different cities). There the geographic distance between a train pixel and a test pixel is undefined. Adapting SACP+GeoCP to that setting requires replacing the geographic kernel with an image-level or feature-space similarity and re-deriving the weighted-CP guarantee. See `docs/ALGORITHM.md` § "Scope of the guarantee" for details.
 
 ## Bandwidth selection
 
